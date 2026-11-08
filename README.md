@@ -1,1 +1,0 @@
-# Trabalho-matem-tica-
