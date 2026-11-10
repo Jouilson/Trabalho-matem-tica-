@@ -52,7 +52,7 @@
                 </div>
                 <div>
                     <label class="block font-bold text-indigo-900 mb-2">Ano Escolar:</label>
-                    <select id="grade-select" class="w-full p-3 rounded-2xl border-4 border-indigo-200 font-bold text-gray-700 focus:border-indigo-500 outline-none">
+                    <select id="grade-select" class="w-full p-3 rounded-2xl border-4 border-indigo-200 font-bold text-gray-700 focus:border-indigo-500 outline-none" onchange="loadPresetTeams()">
                         <option value="">-- Selecione o Ano --</option>
                         <option value="6">6º Ano (Máx. 5 alunos por equipe)</option>
                         <option value="7">7º Ano (Máx. 5 alunos por equipe)</option>
@@ -226,7 +226,7 @@
             topics.forEach(topicData => {
                 for (let n = 1; n <= 5; n++) {
                     rows.push({
-                        grade,
+                        grade: String(grade),
                         team_name: `${topicData.topic} — Equipe ${n}`,
                         topic: topicData.topic,
                         titles: topicData.titles,
@@ -244,12 +244,15 @@
         async function loadPresetTeams() {
             const grade = document.getElementById('grade-select').value;
             const container = document.getElementById('teams-list-container');
-            if (!grade) { container.innerHTML = '<p class="text-xs text-gray-500 italic">Selecione o ano escolar acima.</p>'; return; }
+            if (!grade) { 
+                container.innerHTML = '<p class="text-xs text-gray-500 italic">Selecione o ano escolar acima.</p>'; 
+                return; 
+            }
             container.innerHTML = '<p class="text-xs text-gray-500 italic">Carregando equipes...</p>';
             try {
                 await ensureSession();
                 await ensureSeedTeams(grade);
-                const { data: teams, error } = await supabase.from('jm_teams').select('id,grade,team_name,topic,titles,question,hint1,selected_title').eq('grade', grade).order('team_name');
+                const { data: teams, error } = await supabase.from('jm_teams').select('id,grade,team_name,topic,titles,question,hint1,selected_title').eq('grade', String(grade)).order('team_name');
                 if (error) throw error;
                 const ids = (teams || []).map(t => t.id);
                 let members = [];
@@ -266,19 +269,14 @@
                 })), grade, container);
             } catch (e) {
                 console.error(e);
-                container.innerHTML = `<p class="text-xs text-red-600">Não foi possível carregar. Confira o SQL e a autenticação anônima no Supabase. ${escapeHtml(e.message || '')}</p>`;
+                container.innerHTML = `<p class="text-xs text-red-600">Não foi possível carregar as equipes. Verifique se as tabelas do Supabase (` + "`jm_teams`" + ` e ` + "`jm_members`" + `) foram criadas corretamente. Detalhes: ${escapeHtml(e.message || '')}</p>`;
             }
         }
-
-        // Garante que a seleção do ano dispare o carregamento em todos os navegadores.
-        // O listener é registrado explicitamente, sem depender de onchange inline.
-        window.loadPresetTeams = loadPresetTeams;
-        document.getElementById('grade-select').addEventListener('change', loadPresetTeams);
 
         function renderTeamsList(teams, grade, container) {
             const maxMembers = grade === '8' ? 4 : 5;
             container.innerHTML = '';
-            if (!teams.length) { container.innerHTML = '<p class="text-xs text-gray-500 italic">Nenhuma equipe encontrada.</p>'; return; }
+            if (!teams.length) { container.innerHTML = '<p class="text-xs text-gray-500 italic">Nenhuma equipe encontrada para este ano.</p>'; return; }
             teams.forEach(team => {
                 const isFull = team.members.length >= maxMembers;
                 const div = document.createElement('div');
@@ -470,10 +468,9 @@
         }
         function escapeHtml(value) { const el = document.createElement('div'); el.textContent = String(value ?? ''); return el.innerHTML; }
 
-        // O painel mantém dicas pedagógicas locais; não depende de uma chave de IA no navegador.
         async function askAI() {
             const input = document.getElementById('ai-input'); const query = input.value.trim(); if (!query) return;
-            let reply = `Boa pergunta sobre ${currentTopicData.topic}! Pense em exemplos desse conceito no cotidiano e registrem uma explicação com as próprias palavras.`;
+            let reply = `Boa pergunta sobre ${currentTopicData?.topic || 'o tema'}! Pense em exemplos desse conceito no cotidiano e registrem uma explicação com as próprias palavras.`;
             const q = query.toLowerCase();
             if (q.includes('polígono') || q.includes('poligono')) reply = 'Polígonos são figuras planas fechadas formadas apenas por segmentos de reta que não se cruzam, como triângulos, quadrados e hexágonos.';
             else if (q.includes('porcentagem') || q.includes('%')) reply = 'Porcentagem é uma razão com denominador 100. Por exemplo, 25% significa 25 partes em cada 100.';
@@ -509,7 +506,7 @@
                 let remaining = imgHeight, position = 0;
                 pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight); remaining -= pageHeight;
                 while (remaining > 0) { position = remaining - imgHeight; pdf.addPage(); pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight); remaining -= pageHeight; }
-                const safe = title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_').slice(0, 40) || 'trabalho';
+                const safe = title.replace(/[^\w\s-]/g, '').temp?.trim().replace(/\s+/g, '_').slice(0, 40) || 'trabalho';
                 pdf.save(`${safe}_equipe.pdf`);
             } catch (e) { alert('Erro ao gerar PDF: ' + e.message); }
             finally { if (printArea?.parentNode) printArea.parentNode.removeChild(printArea); if (btn) { btn.innerHTML = oldText; btn.disabled = false; } }
@@ -543,7 +540,6 @@
         }
 
         window.addEventListener('beforeunload', () => { if (realtimeChannel) supabase.removeChannel(realtimeChannel); });
-
     </script>
 </body>
 </html>
