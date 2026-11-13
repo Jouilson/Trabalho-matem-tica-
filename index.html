@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jornada Matemática Colaborativa 🚀</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Socket.io (servido pelo próprio backend) -->
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- PDF real: jsPDF + html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #FFDEE9 0%, #B5FFFC 100%); min-height: 100vh; }
+        .font-comic { font-family: 'Comic Neue', cursive; }
+        .glass-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border: 4px solid #FFF; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        .toolbar-btn { padding: 0.375rem 0.75rem; background-color: #f3f4f6; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 700; border: 1px solid #d1d5db; display: flex; align-items: center; gap: 0.25rem; }
+        .toolbar-btn:hover { background-color: #e5e7eb; }
+        .pulse-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#22c55e; margin-right:4px; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    </style>
+</head>
+<body class="p-3 md:p-6 flex flex-col items-center justify-center">
+    <header class="text-center max-w-3xl w-full mb-6">
+        <div class="inline-block bg-yellow-400 text-yellow-950 font-black px-4 py-1 rounded-full text-sm uppercase tracking-wide shadow-md mb-2">
+            ⭐ Google Docs Maker da Matemática ⭐
+        </div>
+        <h1 class="text-3xl md:text-5xl font-black text-purple-800 font-comic drop-shadow-md">
+            Laboratório de Ideias &amp; Equipes 🎨📐
+        </h1>
+        <p class="text-gray-700 font-bold text-sm md:text-base mt-1">
+            Escolha seu time lúdico, converse com colegas em tempo real, salve na nuvem e entregue direto para o professor!
+        </p>
+        <p class="text-xs text-gray-500 mt-2"><span class="pulse-dot"></span>Versão online — tudo é salvo no servidor e compartilhado com sua equipe</p>
+    </header>
+
+    <main class="max-w-4xl w-full glass-card rounded-3xl p-5 md:p-8 relative">
+        <!-- TELA 0: IDENTIFICAÇÃO -->
+        <section id="screen-login" class="space-y-6">
+            <div class="text-center">
+                <span class="text-5xl">🛡️</span>
+                <h2 class="text-2xl md:text-3xl font-extrabold text-indigo-700 font-comic mt-2">Identificação do Aluno</h2>
+                <p class="text-gray-600 text-sm">Digite seu nome, escolha seu ano e selecione uma das equipes lúdicas disponíveis!</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block font-bold text-indigo-900 mb-2">Seu Nome Completo:</label>
+                    <input type="text" id="student-name" placeholder="Ex: Maria Souza" class="w-full p-3 rounded-2xl border-4 border-indigo-200 font-bold text-gray-700 focus:border-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block font-bold text-indigo-900 mb-2">Ano Escolar:</label>
+                    <select id="grade-select" onchange="loadPresetTeams()" class="w-full p-3 rounded-2xl border-4 border-indigo-200 font-bold text-gray-700 focus:border-indigo-500 outline-none">
+                        <option value="">-- Selecione o Ano --</option>
+                        <option value="6">6º Ano (Máx. 5 alunos por equipe)</option>
+                        <option value="7">7º Ano (Máx. 5 alunos por equipe)</option>
+                        <option value="8">8º Ano (Máx. 4 alunos por equipe)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="bg-indigo-50 p-4 rounded-2xl border-2 border-indigo-200 space-y-3">
+                <h3 class="font-bold text-indigo-900"><i class="fa-solid fa-users"></i> Escolha a sua Equipe:</h3>
+                <div id="teams-list-container" class="space-y-2 max-h-56 overflow-y-auto">
+                    <p class="text-xs text-gray-500 italic">Selecione o ano escolar acima para ver as equipes lúdicas.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- TELA 1: ESCOLHA DO TÍTULO -->
+        <section id="screen-title" class="hidden space-y-6">
+            <div class="text-center">
+                <span class="text-5xl">🎨</span>
+                <h2 class="text-2xl md:text-3xl font-extrabold text-pink-600 font-comic mt-2">Escolha o Título do Trabalho</h2>
+                <p class="text-gray-600 text-sm">Sua equipe precisa definir um título sugerido:</p>
+            </div>
+            <div id="title-suggestions" class="space-y-3"></div>
+        </section>
+
+        <!-- TELA 2: WORKSPACE -->
+        <section id="screen-workspace" class="hidden space-y-4">
+            <div class="flex flex-wrap justify-between items-center bg-purple-100 p-3 rounded-2xl border border-purple-300 gap-2">
+                <div>
+                    <span id="workspace-team-name" class="font-black text-purple-900 text-lg">Equipe: Nome</span>
+                    <p id="workspace-title-display" class="text-xs font-bold text-purple-700">Título: -</p>
+                    <p id="online-count" class="text-[10px] font-bold text-green-700 mt-0.5"><span class="pulse-dot"></span><span id="online-num">1</span> membro(s) online agora</p>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span id="save-status" class="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded-full"><i class="fa-solid fa-cloud"></i> Conectando...</span>
+                    <button onclick="saveWorkManually()" class="bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs shadow"><i class="fa-solid fa-save"></i> Salvar</button>
+                    <button onclick="downloadPDF()" class="bg-red-500 hover:bg-red-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs shadow"><i class="fa-solid fa-file-pdf"></i> Baixar PDF</button>
+                    <button onclick="finishWorkspace()" class="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs shadow">Finalizar e Enviar ao Prof. 🏆</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <!-- EDITOR -->
+                <div class="lg:col-span-2 bg-white rounded-2xl border-4 border-purple-200 flex flex-col shadow-inner overflow-hidden">
+                    <div class="bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-1 items-center">
+                        <button onclick="docCommand('bold')" class="toolbar-btn" title="Negrito"><i class="fa-solid fa-bold"></i></button>
+                        <button onclick="docCommand('italic')" class="toolbar-btn" title="Itálico"><i class="fa-solid fa-italic"></i></button>
+                        <button onclick="docCommand('underline')" class="toolbar-btn" title="Sublinhado"><i class="fa-solid fa-underline"></i></button>
+                        <span class="text-gray-300">|</span>
+                        <button onclick="docCommand('justifyLeft')" class="toolbar-btn" title="Alinhar à Esquerda"><i class="fa-solid fa-align-left"></i></button>
+                        <button onclick="docCommand('justifyCenter')" class="toolbar-btn" title="Centralizar"><i class="fa-solid fa-align-center"></i></button>
+                        <span class="text-gray-300">|</span>
+                        <button onclick="insertPromptHelper(1)" class="toolbar-btn bg-yellow-100 text-yellow-800" title="Inserir Dica Fase 1">💡 Dica Fase 1</button>
+                        <button onclick="insertPromptHelper(2)" class="toolbar-btn bg-blue-100 text-blue-800" title="Inserir Dica Fase 2">🌍 Dica Fase 2</button>
+                        <button onclick="insertPromptHelper(3)" class="toolbar-btn bg-emerald-100 text-emerald-800" title="Inserir Dica Fase 3">🛠️ Dica Fase 3</button>
+                    </div>
+                    <div id="docs-editor" contenteditable="true" class="p-5 min-h-[380px] max-h-[480px] overflow-y-auto focus:outline-none font-medium text-gray-800 space-y-3">
+                        <h3 class="text-purple-800 font-bold text-lg" id="doc-header-title">Relatório da Equipe</h3>
+                        <p class="text-gray-500 italic">Comecem a escrever aqui as investigações, soluções e respostas aos desafios propostos...</p>
+                    </div>
+                </div>
+
+                <!-- COLUNA DIREITA: CHAT + IA -->
+                <div class="flex flex-col gap-4">
+                    <div class="bg-indigo-50 rounded-2xl border-4 border-indigo-200 flex flex-col h-[230px] shadow-sm">
+                        <div class="bg-indigo-200 p-2.5 rounded-t-xl font-bold text-indigo-900 text-xs flex items-center gap-2">
+                            <i class="fa-solid fa-comments"></i> Bate-Papo da Equipe <span class="ml-auto text-[10px] text-indigo-700">(tempo real)</span>
+                        </div>
+                        <div id="chat-messages" class="flex-1 p-2 overflow-y-auto space-y-2 text-xs">
+                            <p class="text-gray-500 italic text-center">Troquem ideias aqui!</p>
+                        </div>
+                        <div class="p-2 bg-indigo-100 rounded-b-xl flex gap-1">
+                            <input type="text" id="chat-input" placeholder="Mensagem pra equipe..." class="w-full p-2 rounded-lg border border-indigo-300 text-xs outline-none" onkeypress="if(event.key === 'Enter') sendChatMessage()">
+                            <button onclick="sendChatMessage()" class="bg-indigo-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold"><i class="fa-solid fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="bg-pink-50 rounded-2xl border-4 border-pink-200 flex flex-col h-[230px] shadow-sm">
+                        <div class="bg-pink-200 p-2.5 rounded-t-xl font-bold text-pink-900 text-xs flex items-center gap-2">
+                            <i class="fa-solid fa-robot"></i> IA de Pesquisa &amp; Dicas 🤖
+                        </div>
+                        <div id="ai-messages" class="flex-1 p-2 overflow-y-auto space-y-2 text-xs">
+                            <div class="bg-white p-2 rounded-xl border border-pink-100 text-gray-800">
+                                <b>Professor IA:</b> Olá! Pergunte-me qualquer dúvida sobre o assunto do seu trabalho para receber ideias e explicações!
+                            </div>
+                        </div>
+                        <div class="p-2 bg-pink-100 rounded-b-xl flex gap-1">
+                            <input type="text" id="ai-input" placeholder="Ex: O que é polígono?" class="w-full p-2 rounded-lg border border-pink-300 text-xs outline-none" onkeypress="if(event.key === 'Enter') askAI()">
+                            <button onclick="askAI()" class="bg-pink-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold"><i class="fa-solid fa-sparkles"></i> Perguntar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TELA 3: FINAL -->
+        <section id="screen-finish" class="hidden space-y-6 text-center">
+            <div class="space-y-2">
+                <span class="text-6xl animate-bounce inline-block">🏆</span>
+                <h2 class="text-3xl font-black text-purple-800 font-comic">TRABALHO ENVIADO COM SUCESSO!</h2>
+                <p class="text-gray-600 font-semibold">O trabalho foi salvo. O envio por e-mail será confirmado logo abaixo.</p>
+                <p id="email-status" class="text-xs font-bold text-green-700 mt-1"></p>
+            </div>
+            <div id="final-report-view" class="text-left bg-white p-6 rounded-2xl border-4 border-purple-200 space-y-3 shadow-inner max-h-96 overflow-y-auto">
+            </div>
+            <div class="flex justify-center gap-3 flex-wrap">
+                <button onclick="sendWorkByEmail()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-2">
+                    <i class="fa-solid fa-envelope"></i> Reenviar por E-mail
+                </button>
+                <button onclick="downloadPDF()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-2">
+                    <i class="fa-solid fa-file-pdf"></i> Baixar PDF
+                </button>
+                <button onclick="location.reload()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-6 rounded-2xl">
+                    🔄 Sair
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const database = {
+            "6": [
+                { topic: "Os Polígonos", titles: ["📐 Caçadores de Formas", "🎮 Polígonos nos Games", "🏰 Cidades Geométricas", "🎨 Arte com Polígonos", "🔍 Detetives do Perímetro"], q1: "O que faz uma figura geométrica ser um polígono e por que as linhas não se cruzam?", hint1: "Pense no formato do piso da sala." },
+                { topic: "A Porcentagem", titles: ["🏷️ Super Descontos", "🍕 A Mágica do 100%", "📊 Porcentagem Diária", "🎮 Bateria e Porcentagem", "💰 Economizando com %"], q1: "O que a porcentagem (%) significa no dia a dia?", hint1: "Observe a bateria do celular." }
+            ],
+            "7": [
+                { topic: "Sistemas de Equações do 1º Grau", titles: ["🕵️‍♂️ Dupla Dinâmica de Equações", "⚖️ O Enigma dos Dois Desconhecidos", "🍔 Compras na Lanchonete", "🎟️ Ingressos e Trocos", "🧩 Duas Pistas, Uma Solução"], q1: "Como duas informações desconhecidas se cruzam?", hint1: "Pense nos preços combinados de lanches." }
+            ],
+            "8": [
+                { topic: "Equação do 2º Grau (Raízes)", titles: ["🚀 A Trajetória Perfeita", "🎯 O Enigma de Bhaskara", "🏀 A Parábola da Basquete", "🔍 Detetives das Raízes", "⚡ As Raízes da Equação"], q1: "O que significa encontrar as raízes da equação?", hint1: "Pense no arco que uma bola faz ao ser lançada." }
+            ]
+        };
+
+        let currentUser = { name: "", grade: "", teamName: "" };
+        let currentTopicData = null;
+        let currentTeam = null;
+        let socket = null;
+        let autoSaveTimer = null;
+        let docEmitTimer = null;
+        let aiChatLocal = [];
+
+        const api = async (url, opts = {}) => {
+            const response = await fetch(url, {
+                headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+                ...opts
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.error) {
+                throw new Error(data.error || `Erro HTTP ${response.status}`);
+            }
+            return data;
+        };
+
+        function setSaveStatus(text, colorClass) {
+            const s = document.getElementById('save-status');
+            if (!s) return;
+            s.className = `text-xs font-bold px-3 py-1 rounded-full ${colorClass || 'bg-gray-100 text-gray-500'}`;
+            s.innerHTML = text;
+        }
+
+        async function loadPresetTeams() {
+            const grade = document.getElementById("grade-select").value;
+            const container = document.getElementById("teams-list-container");
+            container.innerHTML = '<p class="text-xs text-gray-500 italic">Carregando equipes do servidor...</p>';
+            if (!grade) { container.innerHTML = '<p class="text-xs text-gray-500 italic">Selecione o ano escolar acima.</p>'; return; }
+            try {
+                const data = await api(`/api/teams/${grade}`);
+                renderTeamsList(data.teams || [], grade, container);
+            } catch (e) {
+                container.innerHTML = `<p class="text-xs text-red-500">Erro ao carregar equipes: ${escapeHtml(e.message)}</p>`;
+            }
+        }
+
+        function renderTeamsList(teams, grade, container) {
+            const maxMembers = (grade === "8") ? 4 : 5;
+            container.innerHTML = "";
+            if (!teams.length) { container.innerHTML = '<p class="text-xs text-gray-500 italic">Nenhuma equipe.</p>'; return; }
+            teams.forEach(team => {
+                const members = Array.isArray(team.members) ? team.members : [];
+                const isFull = members.length >= maxMembers;
+                const div = document.createElement("div");
+                div.className = "flex justify-between items-center bg-white p-2.5 rounded-xl border border-indigo-200 text-sm";
+                div.innerHTML = `
+                    <div>
+                        <span class="font-bold text-indigo-900">${team.name}</span>
+                        <span class="text-xs text-gray-500 block">Tema: ${team.topic.topic} | Membros (${members.length}/${maxMembers}): ${members.join(", ") || "Vazio"}</span>
+                    </div>
+                    <button data-team="${encodeURIComponent(team.name)}" ${isFull ? 'disabled class="bg-gray-300 text-gray-500 px-3 py-1.5 rounded-lg text-xs cursor-not-allowed"' : 'class="join-btn bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs"'}>
+                        ${isFull ? 'Equipe Lotada' : 'Entrar na Equipe'}
+                    </button>
+                `;
+                container.appendChild(div);
+            });
+            container.querySelectorAll('.join-btn').forEach(btn => {
+                btn.addEventListener('click', () => joinPresetTeam(decodeURIComponent(btn.dataset.team)));
+            });
+        }
+
+        async function joinPresetTeam(teamName) {
+            const studentName = document.getElementById("student-name").value.trim();
+            const grade = document.getElementById("grade-select").value;
+            if (!studentName) { alert("Digite seu nome completo antes de entrar em uma equipe!"); return; }
+            try {
+                const data = await api('/api/join', { method: 'POST', body: JSON.stringify({ name: studentName, grade, teamName }) });
+                if (data.error) { alert(data.error); loadPresetTeams(); return; }
+                currentUser = { name: studentName, grade, teamName };
+                currentTeam = data.team;
+                currentTopicData = data.team.topic;
+                proceedAfterLogin(data.team);
+            } catch (e) { alert("Erro ao entrar na equipe: " + e.message); }
+        }
+
+        function proceedAfterLogin(teamObj) {
+            currentTopicData = teamObj.topic;
+            document.getElementById("screen-login").classList.add("hidden");
+            if (!teamObj.selectedTitle) {
+                showTitleChoices(teamObj);
+            } else {
+                openWorkspace(teamObj);
+            }
+        }
+
+        function showTitleChoices(teamObj) {
+            document.getElementById("screen-title").classList.remove("hidden");
+            const container = document.getElementById("title-suggestions");
+            container.innerHTML = "";
+            currentTopicData.titles.forEach(t => {
+                const div = document.createElement("div");
+                div.className = "p-4 rounded-2xl border-4 border-pink-200 hover:border-pink-500 bg-white cursor-pointer font-bold text-gray-800";
+                div.innerText = t;
+                div.onclick = async () => {
+                    const data = await api('/api/title', { method: 'POST', body: JSON.stringify({ grade: currentUser.grade, teamName: currentUser.teamName, title: t }) });
+                    if (data.team) openWorkspace(data.team);
+                };
+                container.appendChild(div);
+            });
+        }
+
+        async function openWorkspace(teamObj) {
+            // Busca o estado mais recente do servidor
+            try {
+                const state = await api(`/api/state/${currentUser.grade}/${encodeURIComponent(currentUser.teamName)}`);
+                if (state.team) teamObj = state.team;
+            } catch (e) {}
+            currentTeam = teamObj;
+            currentTopicData = teamObj.topic;
+            aiChatLocal = teamObj.aiChat || [];
+
+            document.getElementById("screen-title").classList.add("hidden");
+            document.getElementById("screen-workspace").classList.remove("hidden");
+            document.getElementById("workspace-team-name").innerText = `Equipe: ${teamObj.name} (${teamObj.members.join(", ")})`;
+            document.getElementById("workspace-title-display").innerText = `Título: ${teamObj.selectedTitle}`;
+            document.getElementById("doc-header-title").innerText = teamObj.selectedTitle || "Relatório da Equipe";
+            const editor = document.getElementById("docs-editor");
+            if (teamObj.docContent) {
+                editor.innerHTML = teamObj.docContent;
+            }
+            renderChat(teamObj.chat || []);
+            renderAI(aiChatLocal);
+
+            // Conecta Socket.io para chat em tempo real + sincronia
+            if (!socket) socket = io();
+            socket.emit('join-team', { grade: currentUser.grade, teamName: currentUser.teamName, userName: currentUser.name });
+
+            socket.off('chat');
+            socket.off('doc-update');
+            socket.off('members-update');
+            socket.off('title-update');
+            socket.off('user-joined');
+            socket.off('user-left');
+            socket.on('chat', (msg) => { renderChatAppend(msg); });
+            socket.on('doc-update', ({ docContent, by }) => {
+                const ed = document.getElementById("docs-editor");
+                if (document.activeElement !== ed) {
+                    // Só aplica se o usuário não estiver digitando, para não perder o cursor
+                    if (ed.innerHTML !== docContent) {
+                        ed.innerHTML = docContent;
+                        setSaveStatus('<i class="fa-solid fa-sync"></i> Atualizado por ' + by, 'bg-blue-100 text-blue-700');
+                    }
+                }
+            });
+            socket.on('members-update', ({ members }) => {
+                document.getElementById("workspace-team-name").innerText = `Equipe: ${currentTeam.name} (${members.join(", ")})`;
+                currentTeam.members = members;
+            });
+            socket.on('title-update', ({ title }) => {
+                document.getElementById("workspace-title-display").innerText = `Título: ${title}`;
+                document.getElementById("doc-header-title").innerText = title;
+            });
+            socket.on('user-joined', ({ userName, online }) => { document.getElementById('online-num').innerText = online; });
+            socket.on('user-left', ({ userName, online }) => { document.getElementById('online-num').innerText = Math.max(1, online); });
+
+            // Auto-save a cada 2 segundos
+            if (autoSaveTimer) clearInterval(autoSaveTimer);
+            autoSaveTimer = setInterval(() => { saveWorkSilently(); }, 2000);
+            window.addEventListener('beforeunload', saveWorkSilently);
+
+            // Emite atualizações do doc em tempo real (throttled)
+            editor.oninput = () => {
+                if (docEmitTimer) clearTimeout(docEmitTimer);
+                docEmitTimer = setTimeout(() => {
+                    if (socket) socket.emit('doc-update', {
+                        grade: currentUser.grade,
+                        teamName: currentUser.teamName,
+                        docContent: editor.innerHTML,
+                        by: currentUser.name
+                    });
+                }, 600);
+            };
+
+            setSaveStatus('<i class="fa-solid fa-cloud"></i> Conectado ao banco', 'bg-green-100 text-green-700');
+        }
+
+        function docCommand(command, value = null) { document.execCommand(command, false, value); }
+
+        function insertPromptHelper(faseNum) {
+            const editor = document.getElementById("docs-editor");
+            let text = "";
+            if (faseNum === 1) text = `<br><b>[Fase 1 - Investigação]:</b> ${currentTopicData.q1}<br><i>Resposta: </i><br>`;
+            if (faseNum === 2) text = `<br><b>[Fase 2 - Cotidiano]:</b> Onde observamos isso na prática...<br>`;
+            if (faseNum === 3) text = `<br><b>[Fase 3 - Solução/Projeto]:</b> Nosso projeto criado foi...<br>`;
+            editor.innerHTML += text;
+        }
+
+        async function saveWorkSilently() {
+            if (!currentUser.teamName) return;
+            const docContent = document.getElementById("docs-editor").innerHTML;
+            try {
+                const result = await api('/api/save', {
+                    method: 'POST',
+                    body: JSON.stringify({ grade: currentUser.grade, teamName: currentUser.teamName, docContent })
+                });
+                if (!result.ok) throw new Error('O servidor não confirmou o salvamento.');
+                setSaveStatus('<i class="fa-solid fa-cloud"></i> Salvo no banco de dados', 'bg-green-100 text-green-700');
+            } catch (e) {
+                setSaveStatus('<i class="fa-solid fa-triangle-exclamation"></i> Erro ao salvar', 'bg-red-100 text-red-700');
+                throw e;
+            }
+        }
+
+        async function saveWorkManually() {
+            setSaveStatus('<i class="fa-solid fa-spinner fa-spin"></i> Salvando...', 'bg-yellow-100 text-yellow-700');
+            await saveWorkSilently();
+            const status = document.getElementById("save-status");
+            status.innerHTML = '<i class="fa-solid fa-check"></i> Salvo!';
+            setTimeout(() => { status.innerHTML = '<i class="fa-solid fa-cloud"></i> Salvo na nuvem'; }, 2000);
+        }
+
+        // ---------- CHAT EM TEMPO REAL ----------
+        function sendChatMessage() {
+            const input = document.getElementById("chat-input");
+            const msg = input.value.trim();
+            if (!msg || !socket) return;
+            socket.emit('chat', {
+                grade: currentUser.grade, teamName: currentUser.teamName,
+                sender: currentUser.name, text: msg,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+            input.value = "";
+        }
+        function renderChat(chatList) {
+            const container = document.getElementById("chat-messages");
+            if (!chatList.length) { container.innerHTML = '<p class="text-gray-500 italic text-center">Troquem ideias aqui!</p>'; return; }
+            container.innerHTML = chatList.map(c => chatBubble(c)).join("");
+            container.scrollTop = container.scrollHeight;
+        }
+        function renderChatAppend(msg) {
+            const container = document.getElementById("chat-messages");
+            if (container.querySelector('.italic')) container.innerHTML = '';
+            container.insertAdjacentHTML('beforeend', chatBubble(msg));
+            container.scrollTop = container.scrollHeight;
+        }
+        function chatBubble(c) {
+            const mine = c.sender === currentUser.name;
+            return `<div class="p-2 rounded-xl border ${mine ? 'bg-indigo-600 text-white border-indigo-700 ml-6' : 'bg-white border-indigo-100'}">
+                <span class="font-bold ${mine ? 'text-indigo-100' : 'text-indigo-700'}">${c.sender}</span> <span class="text-[10px] ${mine ? 'text-indigo-200' : 'text-gray-400'}">${c.time}</span>
+                <p class="${mine ? 'text-white' : 'text-gray-800'} mt-0.5">${escapeHtml(c.text)}</p>
+            </div>`;
+        }
+        function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+        // ---------- IA ----------
+        async function askAI() {
+            const input = document.getElementById("ai-input");
+            const query = input.value.trim();
+            if (!query) return;
+            aiChatLocal.push({ sender: currentUser.name, text: query });
+            let aiReply = `Ótima pergunta sobre ${currentTopicData.topic}! Para responder a isso no trabalho, pensem em como aplicamos esse conceito no cotidiano (na escola, nas compras ou em jogos). Pesquisem exemplos práticos e registrem no documento!`;
+            if (query.toLowerCase().includes("polígono") || query.toLowerCase().includes("poligono")) {
+                aiReply = "Polígonos são figuras geométricas planas fechadas formadas apenas por segmentos de reta que não se cruzam (como triângulos, quadrados e hexágonos). No cotidiano, vemos polígonos nas janelas, pisos, placas de trânsito e em gráficos de jogos!";
+            } else if (query.toLowerCase().includes("porcentagem") || query.toLowerCase().includes("%")) {
+                aiReply = "A porcentagem representa uma razão com base 100. Pensem nela como fatias de um total de 100 partes. No dia a dia, usamos em descontos de lojas, promoções e na bateria do celular!";
+            } else if (query.toLowerCase().includes("equação") || query.toLowerCase().includes("equacao") || query.toLowerCase().includes("bhaskara")) {
+                aiReply = "Uma equação envolve valores desconhecidos (incógnitas). No 8º ano, as equações do 2º grau ajudam a calcular áreas, trajetórias de objetos e lançamentos! Use a fórmula de Bhaskara: x = (-b ± √(b²-4ac)) / 2a.";
+            }
+            aiChatLocal.push({ sender: "Professor IA 🤖", text: aiReply });
+            input.value = "";
+            renderAI(aiChatLocal);
+            try { await api('/api/ai', { method: 'POST', body: JSON.stringify({ grade: currentUser.grade, teamName: currentUser.teamName, entries: aiChatLocal }) }); } catch (e) {}
+        }
+        function renderAI(aiList) {
+            const container = document.getElementById("ai-messages");
+            if (!aiList.length) {
+                container.innerHTML = '<div class="bg-white p-2 rounded-xl border border-pink-100 text-gray-800"><b>Professor IA:</b> Olá! Pergunte-me qualquer dúvida!</div>';
+                return;
+            }
+            container.innerHTML = aiList.map(a => `
+                <div class="p-2 rounded-xl border ${a.sender.includes('IA') ? 'bg-pink-100 border-pink-200 text-pink-950 font-medium' : 'bg-white border-pink-100 text-gray-800'}">
+                    <b>${a.sender}:</b> ${escapeHtml(a.text)}
+                </div>
+            `).join("");
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // ---------- DOWNLOAD DE PDF REAL ----------
+        async function downloadPDF(button = null) {
+            const btn = button || document.querySelector('button[onclick^="downloadPDF"]');
+            const originalText = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Gerando PDF...';
+                btn.disabled = true;
+            }
+            let printArea = null;
+            try {
+                if (!window.jspdf?.jsPDF || !window.html2canvas) {
+                    throw new Error('As bibliotecas de PDF não carregaram. Atualize a página e tente novamente.');
+                }
+                await saveWorkSilently();
+
+                const team = currentTeam || {};
+                const editor = document.getElementById('docs-editor');
+                const docContent = editor ? editor.innerHTML : (team.docContent || '');
+                const title = team.selectedTitle || document.getElementById('doc-header-title')?.innerText || 'Relatório da Equipe';
+
+                printArea = document.createElement('div');
+                printArea.style.cssText = [
+                    'position:fixed', 'left:0', 'top:0', 'width:760px',
+                    'padding:36px', 'background:#ffffff', 'color:#1f2937',
+                    'font-family:Arial,sans-serif', 'font-size:14px',
+                    'line-height:1.55', 'z-index:999999', 'box-sizing:border-box'
+                ].join(';');
+                printArea.innerHTML = `
+                    <div style="text-align:center;border-bottom:3px solid #6d28d9;padding-bottom:14px;margin-bottom:18px;">
+                        <h1 style="color:#6d28d9;font-size:24px;font-weight:bold;margin:0;">${escapeHtml(title)}</h1>
+                        <p style="color:#7c3aed;font-size:13px;font-weight:bold;margin:6px 0 0;">Jornada Matemática Colaborativa — ${escapeHtml(String(team.grade || currentUser.grade))}º Ano</p>
+                    </div>
+                    <p><b>Equipe:</b> ${escapeHtml((team.members || []).join(', ') || '-')}</p>
+                    <p><b>Tema:</b> ${escapeHtml(team.topic?.topic || currentTopicData?.topic || '-')}</p>
+                    <p><b>Data:</b> ${new Date().toLocaleDateString('pt-BR')}</p>
+                    <hr style="border:0;border-top:1px solid #ddd;margin:16px 0;">
+                    <div>${docContent || '<p>Sem conteúdo registrado.</p>'}</div>
+                `;
+                document.body.appendChild(printArea);
+                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+                const canvas = await html2canvas(printArea, {
+                    scale: 1.5,
+                    useCORS: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    windowWidth: 900
+                });
+
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                const imageHeight = canvas.height * pageWidth / canvas.width;
+                const pageCount = Math.max(1, Math.ceil(imageHeight / pageHeight));
+                const imageData = canvas.toDataURL('image/jpeg', 0.92);
+
+                for (let page = 0; page < pageCount; page++) {
+                    if (page > 0) pdf.addPage();
+                    pdf.addImage(imageData, 'JPEG', 0, -(page * pageHeight), pageWidth, imageHeight, undefined, 'FAST');
+                }
+
+                const safe = value => String(value || 'trabalho')
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_').slice(0, 45) || 'trabalho';
+                pdf.save(`${safe(title)}_${safe(team.name || 'equipe')}.pdf`);
+            } catch (error) {
+                alert('Não foi possível gerar o PDF: ' + error.message);
+            } finally {
+                if (printArea?.parentNode) printArea.parentNode.removeChild(printArea);
+                if (btn) {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        // ---------- ENVIO DE E-MAIL REAL AO PROFESSOR ----------
+        async function sendWorkByEmail() {
+            const statusEl = document.getElementById('email-status');
+            if (statusEl) statusEl.innerText = '⏳ Salvando o trabalho e enviando o e-mail...';
+            try {
+                await saveWorkSilently();
+                const data = await api('/api/send-email', {
+                    method: 'POST',
+                    body: JSON.stringify({ grade: currentUser.grade, teamName: currentUser.teamName })
+                });
+                if (!data.ok) throw new Error(data.error || 'O serviço não confirmou o envio.');
+                if (statusEl) statusEl.innerText = '✅ O serviço de e-mail confirmou o recebimento do trabalho.';
+                return true;
+            } catch (error) {
+                if (statusEl) statusEl.innerText = '⚠️ O trabalho foi salvo, mas o e-mail não foi confirmado: ' + error.message;
+                return false;
+            }
+        }
+
+        async function finishWorkspace() {
+            const finishButton = document.querySelector('button[onclick="finishWorkspace()"]');
+            if (finishButton) {
+                finishButton.disabled = true;
+                finishButton.innerText = 'Salvando e enviando...';
+            }
+            try {
+                await saveWorkSilently();
+                let team = currentTeam;
+                const state = await api(`/api/state/${currentUser.grade}/${encodeURIComponent(currentUser.teamName)}`);
+                if (state.team) team = state.team;
+                currentTeam = team;
+
+                document.getElementById('screen-workspace').classList.add('hidden');
+                document.getElementById('screen-finish').classList.remove('hidden');
+                document.querySelector('#screen-finish h2').innerText = 'TRABALHO FINALIZADO!';
+                if (typeof confetti === 'function') confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 } });
+
+                document.getElementById('final-report-view').innerHTML = `
+                    <h3 class="text-xl font-black text-purple-900">${escapeHtml(team.selectedTitle || '')}</h3>
+                    <p class="text-xs font-bold text-purple-600">Assunto: ${escapeHtml(team.topic?.topic || '')} (${escapeHtml(String(team.grade))}º Ano)</p>
+                    <p class="text-sm font-semibold text-gray-700">Equipe: ${escapeHtml((team.members || []).join(', '))}</p>
+                    <hr class="my-2">
+                    <div class="p-4 bg-gray-50 rounded-xl border border-gray-200">${team.docContent || ''}</div>
+                `;
+                await sendWorkByEmail();
+            } catch (error) {
+                alert('Não foi possível finalizar: ' + error.message);
+            } finally {
+                if (finishButton) {
+                    finishButton.disabled = false;
+                    finishButton.innerText = 'Finalizar e Enviar ao Prof. 🏆';
+                }
+            }
+        }
+
+    </script>
+</body>
+</html>
