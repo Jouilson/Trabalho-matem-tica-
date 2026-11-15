@@ -367,6 +367,122 @@ function countOnline(room) {
   return r ? r.size : 0;
 }
 
+// ============================================================
+// PAINEL DO PROFESSOR (tutor) — área protegida por senha
+// Bloco ADICIONAL: não altera nenhuma rota existente dos alunos.
+// A senha é validada no SERVIDOR; o hash (scrypt + salt) vem da
+// variável de ambiente ADMIN_CRED no Render — nunca fica no HTML
+// nem no repositório. Gere o hash com: node gerar-hash-senha.js "suaSenha"
+// ============================================================
+const crypto = require('crypto');
+
+// Formato da variável de ambiente: ADMIN_CRED = "salt:hash_hex"
+const [ADMIN_SALT, ADMIN_HASH] = (process.env.ADMIN_CRED || '').split(':');
+const adminSessions = new Map(); // token de sessão -> true (memória)
+
+function verifyAdminPassword(password) {
+  if (!ADMIN_SALT || !ADMIN_HASH) return false;
+  try {
+    const candidate = crypto.scryptSync(String(password), ADMIN_SALT, 64);
+    const stored = Buffer.from(ADMIN_HASH, 'hex');
+    return candidate.length === stored.length && crypto.timingSafeEqual(candidate, stored);
+  } catch (e) { return false; }
+}
+
+// Middleware de proteção: aplicado SOMENTE nas rotas /api/admin/*
+function requireAdmin(req, res, next) {
+  const match = (req.headers.cookie || '').match(/(?:^|;\s*)prof_token=([a-f0-9]+)/);
+  const token = match && match[1];
+  if (token && adminSessions.has(token)) return next();
+  return res.status(401).json({ error: 'Acesso restrito ao professor. Faça login.' });
+}
+
+// Login do professor (a senha nunca é armazenada em texto; só o hash é comparado)
+app.post('/api/login', (req, res) => {
+  const { password } = req.body || {};
+  if (!verifyAdminPassword(password)) {
+    return res.status(401).json({ error: 'Senha incorreta.' });
+  }
+  const token = crypto.randomBytes(24).toString('hex');
+  adminSessions.set(token, true);
+  res.setHeader('Set-Cookie', `prof_token=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`);
+  res.json({ ok: true });
+});
+
+app.post('/api/logout', (req, res) => {
+  const match = (req.headers.cookie || '').match(/(?:^|;\s*)prof_token=([a-f0-9]+)/);
+  if (match) adminSessions.delete(match[1]);
+  res.setHeader('Set-Cookie', 'prof_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
+  res.json({ ok: true });
+});
+
+const MAX_MEMBERS = { "6": 5, "7": 5, "8": 4 };
+
+function teamProgress(t) {
+  const docChars = (t.docContent || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length;
+  let progress = 0;
+  if (t.members && t.members.length > 0) progress += 25; // equipe formada
+  if (t.selectedTitle) progress += 25;                 // título escolhido
+  if (docChars > 0) progress += 30;                     // trabalho escrito
+  if (t.finished) progress += 20;                        // enviado/concluído
+  let status = 'vazia';
+  if (t.finished) status = 'concluida';
+  else if (t.members && t.members.length > 0) status = 'andamento';
+  return { progress, status, docChars, aiCount: (t.aiChat || []).length, chatCount: (t.chat || []).length };
+}
+
+// Visão geral protegida: todas as equipes dos 6º, 7º e 8º anos com resumo de andamento
+app.get('/api/admin/overview', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT grade, name, members, topic, selected_title, doc_content, chat, ai_chat, finished, updated_at
+       FROM teams WHERE grade = ANY($1) ORDER BY grade, name`,
+      [['6', '7', '8']]
+    );
+    const summary = { teams: 0, members: 0, finished: 0, inProgress: 0, empty: 0 };
+    const grades = ['6', '7', '8'].map(g => {
+      const teams = result.rows
+        .filter(row => String(row.grade) === g)
+        .map(row => {
+          const t = rowToTeam(row);
+          const p = teamProgress(t);
+          summary.teams++;
+          summary.members += t.members.length;
+          if (p.status === 'concluida') summary.finished++;
+          else if (p.status === 'andamento') summary.inProgress++;
+          else summary.empty++;
+          return {
+            name: t.name, grade: t.grade, members: t.members,
+            maxMembers: MAX_MEMBERS[g] || 5,
+            topic: t.topic ? t.topic.topic : "",
+            selectedTitle: t.selectedTitle,
+            finished: t.finished,
+            progress: p.progress, status: p.status,
+            docChars: p.docChars, aiCount: p.aiCount, chatCount: p.chatCount,
+            updatedAt: t.updatedAt
+          };
+        });
+      return { grade: g, name: `${g}º Ano`, teams };
+    });
+    res.json({ summary, grades });
+  } catch (error) {
+    console.error('GET admin overview:', error);
+    res.status(500).json({ error: 'Não foi possível carregar o painel.' });
+  }
+});
+
+// Detalhe protegido de uma equipe: trabalho salvo, chat e interações com a IA
+app.get('/api/admin/team/:grade/:teamName', requireAdmin, async (req, res) => {
+  try {
+    const team = await findTeam(req.params.grade, req.params.teamName);
+    if (!team) return res.status(404).json({ error: 'Equipe não encontrada.' });
+    res.json({ team, progress: teamProgress(team) });
+  } catch (error) {
+    console.error('GET admin team:', error);
+    res.status(500).json({ error: 'Não foi possível carregar a equipe.' });
+  }
+});
+
 initializeDatabase()
   .then(() => server.listen(PORT, () => console.log(`Jornada Matemática rodando na porta ${PORT}`)))
   .catch(error => {
