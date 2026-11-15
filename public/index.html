@@ -571,24 +571,44 @@
             }
         }
 
-        // ---------- ENVIO DE E-MAIL REAL AO PROFESSOR ----------
+          // ---------- ENVIO DE E-MAIL DIRETO COM FORMSUBMIT ----------
         async function sendWorkByEmail() {
             const statusEl = document.getElementById('email-status');
-            if (statusEl) statusEl.innerText = '⏳ Salvando o trabalho e enviando o e-mail...';
+            if (statusEl) statusEl.innerText = '⏳ Enviando trabalho para o e-mail...';
             try {
                 await saveWorkSilently();
-                const data = await api('/api/send-email', {
+                const team = currentTeam || {};
+                
+                const response = await fetch('https://formsubmit.co/ajax/profjouilson@gmail.com', {
                     method: 'POST',
-                    body: JSON.stringify({ grade: currentUser.grade, teamName: currentUser.teamName })
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'Accept': 'application/json' 
+                    },
+                    body: JSON.stringify({
+                        _subject: `Trabalho Concluído: ${team.selectedTitle || 'Relatório'} (${team.name || 'Equipe'})`,
+                        _template: 'table',
+                        Equipe: team.name || '-',
+                        Ano: (team.grade || currentUser.grade || '-') + 'º Ano',
+                        Tema: team.topic?.topic || '-',
+                        Membros: (team.members || []).join(', ') || '-',
+                        Conteudo: document.getElementById('docs-editor')?.innerText || '-'
+                    })
                 });
-                if (!data.ok) throw new Error(data.error || 'O serviço não confirmou o envio.');
-                if (statusEl) statusEl.innerText = '✅ O serviço de e-mail confirmou o recebimento do trabalho.';
-                return true;
+                
+                const data = await response.json();
+                if (response.ok || data.success === "true" || data.success === true) {
+                    if (statusEl) statusEl.innerText = '✅ E-mail enviado com sucesso para o professor!';
+                    return true;
+                } else {
+                    throw new Error(data.message || 'Erro ao enviar pelo FormSubmit.');
+                }
             } catch (error) {
-                if (statusEl) statusEl.innerText = '⚠️ O trabalho foi salvo, mas o e-mail não foi confirmado: ' + error.message;
+                if (statusEl) statusEl.innerText = '⚠️ O trabalho foi salvo, mas o e-mail falhou: ' + error.message;
                 return false;
             }
         }
+
 
         async function finishWorkspace() {
             const finishButton = document.querySelector('button[onclick="finishWorkspace()"]');
