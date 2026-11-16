@@ -1,6 +1,7 @@
 // Jornada Matemática Colaborativa - Backend com PostgreSQL
 const express = require('express');
 const http = require('http');
+const crypto = require('crypto');
 const { Pool } = require('pg');
 const { Server } = require('socket.io');
 
