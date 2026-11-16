@@ -30,20 +30,26 @@
         <p class="text-gray-700 font-bold text-sm mt-1">Acompanhe as equipes dos 6º, 7º e 8º anos em um só lugar.</p>
     </header>
 
-    <main class="w-full max-w-5xl glass-card rounded-3xl p-5 md:p-7 relative">
-
+    <main class="w-full max-w-5xl glass-card rounded-3xl p-5 md:p-7 relative"
+        
         <!-- ============ TELA DE LOGIN ============ -->
         <section id="screen-login" class="max-w-md mx-auto space-y-5 py-6">
             <div class="text-center">
                 <span class="text-5xl">🔐</span>
                 <h2 class="text-2xl font-extrabold text-purple-800 font-comic mt-2">Login do Professor</h2>
-                <p class="text-gray-600 text-sm">Esta área é protegida por senha validada no servidor.</p>
+                <p class="text-gray-600 text-sm">Acesse com seu e-mail e senha de administrador.</p>
             </div>
             <form id="login-form" class="space-y-4">
                 <div>
-                    <label class="block font-bold text-purple-900 mb-2"><i class="fa-solid fa-key"></i> Senha do tutor:</label>
-                    <input type="password" id="login-password" autocomplete="current-password"
-                        placeholder="Digite a senha do professor"
+                    <label class="block font-bold text-purple-900 mb-1 text-sm"><i class="fa-solid fa-envelope"></i> E-mail do tutor:</label>
+                    <input type="email" id="login-email" autocomplete="email" required
+                        placeholder="seu-email@escola.com"
+                        class="w-full p-3 rounded-2xl border-4 border-purple-200 font-bold text-gray-700 focus:border-purple-500 outline-none">
+                </div>
+                <div>
+                    <label class="block font-bold text-purple-900 mb-1 text-sm"><i class="fa-solid fa-key"></i> Senha do tutor:</label>
+                    <input type="password" id="login-password" autocomplete="current-password" required
+                        placeholder="Digite sua senha"
                         class="w-full p-3 rounded-2xl border-4 border-purple-200 font-bold text-gray-700 focus:border-purple-500 outline-none">
                     <p id="login-error" class="text-red-500 text-xs font-bold mt-2 hidden"></p>
                 </div>
