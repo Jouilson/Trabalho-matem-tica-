@@ -25,12 +25,13 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000
 });
+
 // Rota de Login do Administrador via Banco de Dados (Neon/PostgreSQL)
 app.post('/api/login', async (req, res) => {
     const { email, senha } = req.body;
 
     if (!email || !senha) {
-        return res.status(400).json({ success: false, message: 'Informe o e-mail e a senha.' });
+        return res.status(400).json({ success: false, error: 'Informe o e-mail e a senha.' });
     }
 
     try {
@@ -38,7 +39,7 @@ app.post('/api/login', async (req, res) => {
         const result = await pool.query('SELECT * FROM admin_config WHERE email = $1', [email]);
         
         if (result.rows.length === 0) {
-            return res.status(401).json({ success: false, message: 'E-mail ou senha inválidos.' });
+            return res.status(401).json({ success: false, error: 'E-mail ou senha inválidos.' });
         }
 
         const admin = result.rows[0];
@@ -47,7 +48,7 @@ app.post('/api/login', async (req, res) => {
         const [salt, storedHash] = admin.password_hash.split(':');
 
         if (!salt || !storedHash) {
-            return res.status(500).json({ success: false, message: 'Erro na configuração da senha.' });
+            return res.status(500).json({ success: false, error: 'Erro na configuração da senha.' });
         }
 
         // Gera o hash da senha digitada usando o mesmo salt
@@ -55,17 +56,24 @@ app.post('/api/login', async (req, res) => {
         const storedHashBuffer = Buffer.from(storedHash, 'hex');
 
         // Compara os hashes com segurança contra timing attacks
-        if (crypto.timingSafeEqual(hashBuffer, storedHashBuffer)) {
-            // Sucesso no login
-            return res.json({ success: true, message: 'Login bem-sucedido!' });
-        } else {
-            return res.status(401).json({ success: false, message: 'E-mail ou senha inválidos.' });
+        if (!crypto.timingSafeEqual(hashBuffer, storedHashBuffer)) {
+            return res.status(401).json({ success: false, error: 'E-mail ou senha inválidos.' });
         }
+
+        // Se chegou aqui, a senha está correta! Cria o token de sessão e o cookie.
+        const token = crypto.randomBytes(24).toString('hex');
+        adminSessions.set(token, true);
+        res.setHeader('Set-Cookie', `prof_token=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`);
+        
+        // Retorna ok: true para o frontend do professor abrir o painel
+        return res.json({ ok: true });
+
     } catch (err) {
         console.error('Erro ao processar login:', err);
-        res.status(500).json({ success: false, message: 'Erro interno no servidor.' });
+        res.status(500).json({ success: false, error: 'Erro interno no servidor.' });
     }
 });
+
   
 
 app.use(express.json({ limit: '5mb' }));
