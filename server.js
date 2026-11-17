@@ -68,7 +68,7 @@ app.get('/emergencia-senha', async (req, res) => {
     const passwordHash = `${salt}:${hash}`;
 
     // Atualiza no banco (substitua pelo seu e-mail real)
-    await pool.query('UPDATE admin_config SET password_hash = $1 WHERE email = $2', [passwordHash, 'seu-email@escola.com']);
+    await pool.query('UPDATE admin_config SET password_hash = $1 WHERE email = $2', [passwordHash, 'profjouilson@gmail.com']);
     
     res.send('✅ Senha redefinida com sucesso para "123456"! Agora remova esta rota do server.js.');
   } catch (err) {
