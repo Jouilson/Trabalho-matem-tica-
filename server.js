@@ -28,6 +28,47 @@ const pool = new Pool({
 
 // Rota de Login do Administrador via Banco de Dados (Neon/PostgreSQL)
 app.post('/api/login', async (req, res) => {
+    const { email, senha } = req.body || {};
+
+    if (!email || !senha) {
+        return res.status(400).json({ success: false, error: 'Informe o e-mail e a senha.' });
+    }
+
+    try {
+        const result = await pool.query('SELECT * FROM admin_config WHERE email = $1', [email]);
+        
+        if (result.rows.length === 0) {
+            return res.status(401).json({ success: false, error: 'E-mail ou senha inválidos.' });
+        }
+
+        const admin = result.rows[0];
+        const [salt, storedHash] = admin.password_hash.split(':');
+
+        if (!salt || !storedHash) {
+            return res.status(500).json({ success: false, error: 'Erro na configuração da senha.' });
+        }
+
+        const hashBuffer = crypto.scryptSync(senha, salt, 64);
+        const storedHashBuffer = Buffer.from(storedHash, 'hex');
+
+        if (!crypto.timingSafeEqual(hashBuffer, storedHashBuffer)) {
+            return res.status(401).json({ success: false, error: 'E-mail ou senha inválidos.' });
+        }
+
+        const token = crypto.randomBytes(24).toString('hex');
+        adminSessions.set(token, true);
+        res.setHeader('Set-Cookie', `prof_token=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`);
+        
+        return res.json({ ok: true });
+
+    } catch (err) {
+        console.error('Erro ao processar login:', err);
+        res.status(500).json({ success: false, error: 'Erro interno no servidor.' });
+    }
+});
+
+de Login do Administrador via Banco de Dados (Neon/PostgreSQL)
+app.post('/api/login', async (req, res) => {
     const { email, senha } = req.body;
 
     if (!email || !senha) {
