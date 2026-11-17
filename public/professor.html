@@ -70,11 +70,6 @@
                     <h2 class="text-xl md:text-2xl font-black text-purple-900 font-comic">Visão Geral das Equipes</h2>
                     <p class="text-xs text-gray-500"><span class="pulse-dot"></span>Atualizado automaticamente a cada 10 segundos</p>
                 </div>
-                           <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h2 class="text-xl md:text-2xl font-black text-purple-900 font-comic">Visão Geral das Equipes</h2>
-                    <p class="text-xs text-gray-500"><span class="pulse-dot"></span>Atualizado automaticamente a cada 10 segundos</p>
-                </div>
                 <div class="flex gap-2">
                     <button onclick="loadOverview()" class="toolbar-btn bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-100">
                         <i class="fa-solid fa-rotate"></i> Atualizar
@@ -88,18 +83,18 @@
                 </div>
             </div>
 
-                       <div class="flex gap-2">
-                    <button onclick="loadOverview()" class="toolbar-btn bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-100">
-                        <i class="fa-solid fa-rotate"></i> Atualizar
+            <!-- Caixa de Alteração de Senha -->
+            <div id="box-mudar-senha" class="hidden bg-purple-50 border-2 border-purple-200 rounded-2xl p-4 space-y-3">
+                <h3 class="font-bold text-purple-900 text-sm"><i class="fa-solid fa-shield-halved"></i> Atualizar Senha do Administrador</h3>
+                <form id="form-mudar-senha" class="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <input type="email" id="edit-email" required placeholder="Confirme seu e-mail" class="p-2 rounded-xl border border-purple-300 text-xs font-bold">
+                    <input type="password" id="edit-senha-atual" required placeholder="Senha atual" class="p-2 rounded-xl border border-purple-300 text-xs font-bold">
+                    <input type="password" id="edit-nova-senha" required placeholder="Nova senha" class="p-2 rounded-xl border border-purple-300 text-xs font-bold">
+                    <button type="submit" id="btn-salvar-senha" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-xl text-xs shadow">
+                        Salvar Nova Senha
                     </button>
-                    <button onclick="toggleSenhaBox()" class="bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold px-3 py-2 rounded-xl text-xs">
-                        <i class="fa-solid fa-key"></i> Alterar Senha
-                    </button>
-                    <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white font-bold px-3 py-2 rounded-xl text-xs shadow">
-                        <i class="fa-solid fa-right-from-bracket"></i> Sair
-                    </button>
-                  </div>
-                </div>
+                </form>
+                <p id="msg-mudar-senha" class="text-xs font-bold hidden"></p>
             </div>
 
             <!-- Resumo geral -->
