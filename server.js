@@ -59,6 +59,23 @@ app.post('/api/login', async (req, res) => {
         if (!crypto.timingSafeEqual(hashBuffer, storedHashBuffer)) {
             return res.status(401).json({ success: false, error: 'E-mail ou senha inválidos.' });
         }
+      // ROTA DE EMERGÊNCIA TEMPORÁRIA PARA DEFINIR SENHA
+app.get('/emergencia-senha', async (req, res) => {
+  try {
+    const novaSenha = '123456'; // A senha temporária que você quer
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.scryptSync(novaSenha, salt, 64).toString('hex');
+    const passwordHash = `${salt}:${hash}`;
+
+    // Atualiza no banco (substitua pelo seu e-mail real)
+    await pool.query('UPDATE admin_config SET password_hash = $1 WHERE email = $2', [passwordHash, 'seu-email@escola.com']);
+    
+    res.send('✅ Senha redefinida com sucesso para "123456"! Agora remova esta rota do server.js.');
+  } catch (err) {
+    res.status(500).send('Erro: ' + err.message);
+  }
+});
+
 
         // Se chegou aqui, a senha está correta! Cria o token de sessão e o cookie.
         const token = crypto.randomBytes(24).toString('hex');
