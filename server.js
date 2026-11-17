@@ -425,7 +425,6 @@ function countOnline(room) {
 // variável de ambiente ADMIN_CRED no Render — nunca fica no HTML
 // nem no repositório. Gere o hash com: node gerar-hash-senha.js "suaSenha"
 // ============================================================
-const crypto = require('crypto');
 
 // Formato da variável de ambiente: ADMIN_CRED = "salt:hash_hex"
 const [ADMIN_SALT, ADMIN_HASH] = (process.env.ADMIN_CRED || '').split(':');
