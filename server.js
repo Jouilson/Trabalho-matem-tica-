@@ -152,14 +152,15 @@ app.post('/api/password-recovery', async (req, res) => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          _subject: 'Código de recuperação — Painel do Professor',
-          _captcha: 'false',
-          _template: 'table',
-          'Código de recuperação': code,
-          'Validade': '15 minutos',
-          'Orientação': 'Se você não solicitou, ignore esta mensagem.'
-        })
+      body: JSON.stringify({
+  _subject: 'Código de recuperação — Painel do Professor',
+  _captcha: 'false',
+  _template: 'table',
+  _url: `${req.get('origin') || process.env.APP_URL || ''}/professor.html`,
+  'Código de recuperação': code,
+  'Validade': '15 minutos',
+  'Orientação': 'Se você não solicitou, ignore esta mensagem.'
+})
       }
     );
 
@@ -172,14 +173,17 @@ app.post('/api/password-recovery', async (req, res) => {
     );
 
     if (!accepted) {
-      recoveryCodes.delete(email);
-      console.error('FormSubmit recuperação:', response.status, result);
+  recoveryCodes.delete(email);
 
-      return res.status(502).json({
-        ok: false,
-        error: 'O serviço de e-mail não confirmou o envio. Verifique a ativação do FormSubmit.'
-      });
-    }
+  console.error('FormSubmit:', response.status, result);
+
+  return res.status(502).json({
+    ok: false,
+    error: result.message ||
+      result.error ||
+      'O FormSubmit não aceitou o envio.'
+  });
+}
 
     res.json({
       ok: true,
