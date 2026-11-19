@@ -115,6 +115,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+
 app.post('/api/password-recovery', async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
 
@@ -144,6 +145,15 @@ app.post('/api/password-recovery', async (req, res) => {
   });
 
   try {
+    const payload = {
+      _subject: 'Código de recuperação — Painel do Professor',
+      _template: 'table',
+      _captcha: 'false',
+      'Código de recuperação': code,
+      'Validade': '15 minutos',
+      'Orientação': 'Se você não solicitou, ignore esta mensagem.'
+    };
+
     const response = await fetch(
       `https://formsubmit.co/ajax/${encodeURIComponent(PROFESSOR_EMAIL)}`,
       {
@@ -152,15 +162,7 @@ app.post('/api/password-recovery', async (req, res) => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-      body: JSON.stringify({
-  _subject: 'Código de recuperação — Painel do Professor',
-  _captcha: 'false',
-  _template: 'table',
-  _url: `${req.get('origin') || process.env.APP_URL || ''}/professor.html`,
-  'Código de recuperação': code,
-  'Validade': '15 minutos',
-  'Orientação': 'Se você não solicitou, ignore esta mensagem.'
-})
+        body: JSON.stringify(payload)
       }
     );
 
@@ -173,17 +175,14 @@ app.post('/api/password-recovery', async (req, res) => {
     );
 
     if (!accepted) {
-  recoveryCodes.delete(email);
+      recoveryCodes.delete(email);
+      console.error('FormSubmit recuperação:', response.status, result);
 
-  console.error('FormSubmit:', response.status, result);
-
-  return res.status(502).json({
-    ok: false,
-    error: result.message ||
-      result.error ||
-      'O FormSubmit não aceitou o envio.'
-  });
-}
+      return res.status(502).json({
+        ok: false,
+        error: 'O serviço de e-mail recusou o envio. Verifique os logs do Render.'
+      });
+    }
 
     res.json({
       ok: true,
